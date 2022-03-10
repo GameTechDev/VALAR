@@ -311,7 +311,6 @@ void ModelViewer::RenderScene( void )
         globals.SunIntensity = Vector3(Scalar(g_SunLightIntensity));
 
 #ifdef QUERY_PSINVOCATIONS
-        gfxContext.SetPipelineState(Renderer::sm_PSOs[1]);
         gfxContext.BeginQuery(Renderer::m_queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
 #endif
         // Begin rendering depth
@@ -331,11 +330,9 @@ void ModelViewer::RenderScene( void )
         {
             ScopedTimer _prof(L"VRS", gfxContext);
 
-            const std::string rate = VRS::VRSShadingRate.ToString();
-            const char* shadingRate = rate.c_str();
             if (VRS::ShadingRateTier == D3D12_VARIABLE_SHADING_RATE_TIER_1)
             {
-                gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(shadingRate), nullptr);
+                gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(VRS::VRSShadingRate), nullptr);
             }
             else if (VRS::ShadingRateTier == D3D12_VARIABLE_SHADING_RATE_TIER_2)
             {
@@ -347,7 +344,7 @@ void ModelViewer::RenderScene( void )
                 const char* combiner2 = combinerString2.c_str();
                 shadingRateCombiners[1] = VRS::GetCombiner(combiner2);
 
-                gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(shadingRate), shadingRateCombiners);
+                gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(VRS::VRSShadingRate), shadingRateCombiners);
                 gfxContext.TransitionResource(g_VRSTier2Buffer, D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE, true);
                 gfxContext.GetCommandList()->RSSetShadingRateImage(g_VRSTier2Buffer.GetResource());
             }
@@ -424,7 +421,6 @@ void ModelViewer::RenderScene( void )
         MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
 
 #ifdef QUERY_PSINVOCATIONS
-    gfxContext.SetPipelineState(Renderer::sm_PSOs[1]);
     gfxContext.EndQuery(Renderer::m_queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
     gfxContext.ResolveQueryData(Renderer::m_queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, Renderer::m_queryResult, 0);
 #endif

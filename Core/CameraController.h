@@ -34,6 +34,7 @@ public:
 
     // Helper function
     static void ApplyMomentum( float& oldValue, float& newValue, float deltaTime );
+    Vector3 GetPosition();
 
 protected:
     Camera& m_TargetCamera;
@@ -55,6 +56,9 @@ public:
     void EnableMomentum( bool enable ) { m_Momentum = enable; }
 
     void SetHeadingPitchAndPosition(float heading, float pitch, const Vector3& position);
+
+    float GetCurrentHeading() { return m_CurrentHeading; }
+    float GetCurrentPitch() { return m_CurrentPitch; }
 
 private:
 

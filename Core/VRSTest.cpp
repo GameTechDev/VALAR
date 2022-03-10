@@ -1,3 +1,23 @@
+// Copyright (C) 2022 Intel Corporation
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom
+// the Software is furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+
 #include "pch.h"
 #include "VRSTest.h"
 #include "VRS.h"
@@ -60,6 +80,13 @@ namespace VRSTest
     int frameCount = 0;
     double gpuTimeSum = 0;
     double cpuTimeSum = 0;
+    Math::Vector3 targetPosition;
+    float targetHeading;
+    float targetPitch;
+    float cameraFlySpeed = 0.01f;
+    float cameraRotateSpeed = 0.005f;
+    float flyingTime = 0.0f;
+    int flyCameraIndex = 0;
     UnitTest* Test = nullptr;
     std::list<Experiment*>::iterator NextExperiment;
     UnitTestMode TestMode = UnitTestMode::TestModeNone;
@@ -69,6 +96,14 @@ namespace VRSTest
                               Location(4.70f, 0.0f, Math::Vector3(-900.0f, 200.0f, -40.0f)), //first floor view
                               Location(0.0f, 0.0f, Math::Vector3(-430.0f, 160.0f, 150.0f)), //cloth
     };
+
+    const Location flyLocales[3] = {
+        Location(XM_PIDIV2, 0.0f, Vector3(-559.038208f, 169.621399f, -214.290222f)), //chain
+        Location(1.59339249f, -0.00380240404f, Vector3(-1357.49060f, 187.460464f, -63.5717163)), //lion close up
+        //Location(-2.50639725f, 0.0735977143f, Vector3(-888.003662f, 151.351562f, 167.172333f)), //cloth angle
+        Location(-2.50639725f, 0.0735977143f, Vector3(645.763733f, 167.056641f, 156.868149f)), //cloth angle
+    };
+
 }
 
 void VRSTest::Update(CameraController* camera, float deltaT)
@@ -83,6 +118,14 @@ void VRSTest::Update(CameraController* camera, float deltaT)
             {
                 RunningTest = true;
                 TestState = UnitTestState::Setup;
+                break;
+            }
+
+            if (GameInput::IsFirstPressed(GameInput::kKey_4))
+            {
+                RunningTest = true;
+                TestState = UnitTestState::FlyCamera;
+                break;
             }
         }
         break;
@@ -405,6 +448,55 @@ void VRSTest::Update(CameraController* camera, float deltaT)
 
             RunningTest = false;
             TestState = UnitTestState::TestStateNone;
+        }
+        break;
+        case UnitTestState::FlyCamera:
+        {
+            //FlyingFPSCamera* const fpsCamera = dynamic_cast<FlyingFPSCamera*> (camera);
+            //Vector3 p = fpsCamera->GetPosition();
+
+            targetPosition = flyLocales[flyCameraIndex].GetPosition();
+            targetHeading = flyLocales[flyCameraIndex].GetHeading();
+            targetPitch = flyLocales[flyCameraIndex].GetPitch();
+
+            flyCameraIndex++;
+            if (flyCameraIndex >= 3)
+            {
+                flyCameraIndex = 0;
+                VRS::DebugDraw = !VRS::DebugDraw;
+            }
+
+            flyingTime = 0.0f;
+            TestState = UnitTestState::WaitFlyCamera;
+        }
+        break;
+        case UnitTestState::WaitFlyCamera:
+        {
+            FlyingFPSCamera* const fpsCamera = dynamic_cast<FlyingFPSCamera*> (camera);
+            if (fpsCamera)
+            {
+                Vector3 currentPosition = fpsCamera->GetPosition();
+                float currentHeading = fpsCamera->GetCurrentHeading();
+                float currentPitch = fpsCamera->GetCurrentPitch();
+                
+                flyingTime += deltaT;
+                
+                Vector3 newPosition = Math::Lerp(currentPosition, targetPosition, flyingTime * cameraFlySpeed);
+                float newHeading = Math::Lerp(currentHeading, targetHeading, flyingTime * cameraRotateSpeed);
+                float newPitch = Math::Lerp(currentPitch, targetPitch, flyingTime * cameraRotateSpeed);
+
+                fpsCamera->SetHeadingPitchAndPosition(newHeading, newPitch, newPosition);
+                if (fabs(newPosition.GetX() - targetPosition.GetX()) < 1.0f &&
+                    fabs(newPosition.GetY() - targetPosition.GetY()) < 1.0f &&
+                    fabs(newPosition.GetZ() - targetPosition.GetZ()) < 1.0f)
+                {
+                    TestState = UnitTestState::FlyCamera;
+                }
+            }
+            else
+            {
+                TestState = UnitTestState::TestStateNone;
+            }
         }
         break;
     }

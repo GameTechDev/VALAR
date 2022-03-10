@@ -145,7 +145,7 @@ void VariableGroup::Display( TextContext& Text, float leftMargin, EngineVar* hig
         {
             
             iter->second->DisplayValue(Text);
-            Text.SetCursorX(leftMargin + 200.0f);
+            Text.SetCursorX(leftMargin + 300.0f);
             Text.DrawString(iter->first);
             Text.NewLine();
         }

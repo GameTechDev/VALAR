@@ -19,6 +19,12 @@
 using namespace Math;
 using namespace GameCore;
 
+Vector3 CameraController::GetPosition()
+{
+    Vector3 position = m_TargetCamera.GetPosition();
+    return position;
+}
+
 FlyingFPSCamera::FlyingFPSCamera( Camera& camera, Vector3 worldUp ) : CameraController( camera )
 {
     m_WorldUp = Normalize(worldUp);

@@ -22,15 +22,19 @@
 #include "Display.h"
 #include "Util/CommandLineArg.h"
 #include <shellapi.h>
+#include <VersionHelpers.h>
+#include <ShellScalingApi.h>
 #include "../Model/Renderer.h"
 #include "VRS.h"
 
 #pragma comment(lib, "runtimeobject.lib") 
+#pragma comment(lib, "Shcore.lib")
 
 namespace GameCore
 {
     using namespace Graphics;
 
+    bool gQuit = false;
     bool gIsSupending = false;
 
     void InitializeApplication( IGameApp& game )
@@ -106,14 +110,46 @@ namespace GameCore
 
     LRESULT CALLBACK WndProc( HWND, UINT, WPARAM, LPARAM );
 
+    void SetDPIAwareness()
+    {
+        // https://docs.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process
+        // https://docs.microsoft.com/en-us/windows/win32/hidpi/dpi-awareness-context
+
+        OSVERSIONINFOEX osvi = { sizeof(osvi), 10, 0, 15063, 0, {0}, 0, 0 };
+        DWORDLONG const dwlConditionMask = VerSetConditionMask(
+            VerSetConditionMask(
+                VerSetConditionMask(0, VER_MAJORVERSION, VER_GREATER_EQUAL), 
+                VER_MINORVERSION, VER_GREATER_EQUAL), 
+            VER_BUILDNUMBER, VER_GREATER_EQUAL);
+
+        BOOL ret = VerifyVersionInfo(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_BUILDNUMBER, dwlConditionMask);
+        if (ret) // Creators Update of Windows 10 or later
+        {
+            SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+        else if (IsWindows8Point1OrGreater())
+        {
+            SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+        }
+        else
+        {
+            SetProcessDPIAware();
+        }
+    }
+
     int RunApplication( IGameApp& app, const wchar_t* className, HINSTANCE hInst, int nCmdShow )
     {
+        (nCmdShow);
+
         if (!XMVerifyCPUSupport())
             return 1;
 
         Microsoft::WRL::Wrappers::RoInitializeWrapper InitializeWinRT(RO_INIT_MULTITHREADED);
         ASSERT_SUCCEEDED(InitializeWinRT);
 
+        // Make our application DPI aware
+        SetDPIAwareness();
+        
         // Register class
         WNDCLASSEX wcex;
         wcex.cbSize = sizeof(WNDCLASSEX);
@@ -150,8 +186,11 @@ namespace GameCore
             {
                 TranslateMessage(&msg);
                 DispatchMessage(&msg);
+                if (msg.message == WM_QUIT)
+                    gQuit = true;
             }
-            if (msg.message == WM_QUIT)
+
+            if (gQuit)
                 break;
         }
         while (UpdateApplication(app));	// Returns false to quit loop

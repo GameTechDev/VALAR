@@ -1,15 +1,22 @@
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-// Developed by Minigraph
-//
-// Author:  James Stanard 
-//
+// Copyright (C) 2022 Intel Corporation
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom
+// the Software is furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "pch.h"
 #include "VRS.h"
@@ -518,39 +525,39 @@ D3D12_SHADING_RATE_COMBINER VRS::GetCombiner(const char* combiner)
     }
 }
 
-D3D12_SHADING_RATE VRS::GetCurrentTier1ShadingRate(const char* shadingRate)
+D3D12_SHADING_RATE VRS::GetCurrentTier1ShadingRate(EnumVar shadingRate)
 {
-    D3D12_SHADING_RATE rate = D3D12_SHADING_RATE_1X1;
+    D3D12_SHADING_RATE rate = (D3D12_SHADING_RATE)-1;
 
-    if (strcmp(shadingRate, "1X1") == 0)
-    {
+    //Map to UI values in VRSShadingRate
+    switch (shadingRate) {
+    case 0:
         rate = D3D12_SHADING_RATE_1X1;
-    }
-    else if (strcmp(shadingRate, "2X2") == 0)
-    {
-        rate = D3D12_SHADING_RATE_2X2;
-    }
-    else if (strcmp(shadingRate, "1X2") == 0)
-    {
+        break;
+    case 1:
         rate = D3D12_SHADING_RATE_1X2;
-    }
-    else if (strcmp(shadingRate, "2X1") == 0)
-    {
+        break;
+    case 2:
         rate = D3D12_SHADING_RATE_2X1;
+        break;
+    case 3:
+        rate = D3D12_SHADING_RATE_2X2;
+        break;
+    case 4:
+        if(ShadingRateAdditionalShadingRatesSupported)
+            rate = D3D12_SHADING_RATE_2X4;
+        break;
+    case 5:
+        if (ShadingRateAdditionalShadingRatesSupported)
+            rate = D3D12_SHADING_RATE_4X2;
+        break;
+    case 6:
+        if (ShadingRateAdditionalShadingRatesSupported)
+            rate = D3D12_SHADING_RATE_4X4;
+        break;
     }
-    else if (strcmp(shadingRate, "4X4") == 0 && ShadingRateAdditionalShadingRatesSupported)
-    {
-        rate = D3D12_SHADING_RATE_4X4;
-    }
-    else if (strcmp(shadingRate, "2X4") == 0 && ShadingRateAdditionalShadingRatesSupported)
-    {
-        rate = D3D12_SHADING_RATE_2X4;
-    }
-    else if (strcmp(shadingRate, "4X2") == 0 && ShadingRateAdditionalShadingRatesSupported)
-    {
-        rate = D3D12_SHADING_RATE_4X2;
-    }
-    else
+
+    if (rate == ((D3D12_SHADING_RATE)-1))
     {
         printf("User did not enter valid shading rate input or additional shading rates not supported. Defaulting to 1X1.\n");
         rate = D3D12_SHADING_RATE_1X1;

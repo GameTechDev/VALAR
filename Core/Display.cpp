@@ -63,9 +63,11 @@ namespace
     uint64_t s_FrameIndex = 0;
     int64_t s_FrameStartTick = 0;
 
+    bool g_SupportTearing = false;
+
     BoolVar s_EnableVSync("Timing/VSync", true);
-    BoolVar s_LimitTo30Hz("Timing/Limit To 30Hz", false);
-    BoolVar s_DropRandomFrames("Timing/Drop Random Frames", false);
+    //BoolVar s_LimitTo30Hz("Timing/Limit To 30Hz", false);
+    //BoolVar s_DropRandomFrames("Timing/Drop Random Frames", false);
 }
 
 namespace Graphics
@@ -168,6 +170,21 @@ namespace Graphics
 #endif
     }
 
+    void CheckTearingSupport()
+    {
+        ComPtr<IDXGIFactory6> factory;
+        HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+        BOOL allowTearing = FALSE;
+        if (SUCCEEDED(hr))
+        {
+            hr = factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing));
+        }
+
+        g_SupportTearing = SUCCEEDED(hr) && allowTearing;
+
+        Utility::Printf("Tearing support: %d\n", g_SupportTearing);
+    }
+
     ColorBuffer g_DisplayPlane[SWAP_CHAIN_BUFFER_COUNT];
     UINT g_CurrentBuffer = 0;
 
@@ -189,11 +206,13 @@ namespace Graphics
 
     enum DebugZoomLevel { kDebugZoomOff, kDebugZoom2x, kDebugZoom4x, kDebugZoom8x, kDebugZoom16x, kDebugZoomCount };
     const char* DebugZoomLabels[] = { "Off", "2x Zoom", "4x Zoom", "8x Zoom", "16x Zoom" };
-    EnumVar DebugZoom("Graphics/Display/Magnify Pixels", kDebugZoomOff, kDebugZoomCount, DebugZoomLabels);
-}
+    EnumVar DebugZoom("Graphics/Display/Magnify Pixels", kDebugZoomOff, kDebugZoomCount, DebugZoomLabels);}
 
 void Display::Resize(uint32_t width, uint32_t height)
 {
+    if (!width || !height)
+        return;
+
     g_CommandManager.IdleGPU();
 
     g_DisplayWidth = width;
@@ -207,7 +226,8 @@ void Display::Resize(uint32_t width, uint32_t height)
         g_DisplayPlane[i].Destroy();
 
     ASSERT(s_SwapChain1 != nullptr);
-    ASSERT_SUCCEEDED(s_SwapChain1->ResizeBuffers(SWAP_CHAIN_BUFFER_COUNT, width, height, SwapChainFormat, 0));
+    ASSERT_SUCCEEDED(s_SwapChain1->ResizeBuffers(SWAP_CHAIN_BUFFER_COUNT, width, height, SwapChainFormat, 
+        g_SupportTearing ? (DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) : DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
 
     for (uint32_t i = 0; i < SWAP_CHAIN_BUFFER_COUNT; ++i)
     {
@@ -228,6 +248,9 @@ void Display::Initialize(void)
 {
     ASSERT(s_SwapChain1 == nullptr, "Graphics has already been initialized");
 
+    // Test tearing support.
+    CheckTearingSupport();
+
     Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;
     ASSERT_SUCCEEDED(CreateDXGIFactory2(0, MY_IID_PPV_ARGS(&dxgiFactory)));
 
@@ -242,7 +265,7 @@ void Display::Initialize(void)
     swapChainDesc.Scaling = DXGI_SCALING_NONE;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-    swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    swapChainDesc.Flags = g_SupportTearing ? (DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) : DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
     fsSwapChainDesc.Windowed = TRUE;
@@ -484,9 +507,19 @@ void Display::Present(void)
     else
         PreparePresentSDR();
 
-    UINT PresentInterval = s_EnableVSync ? std::min(4, (int)Round(s_FrameTime * 60.0f)) : 0;
+    BOOL fullscreenState = FALSE;
+    ASSERT_SUCCEEDED(s_SwapChain1->GetFullscreenState(&fullscreenState, nullptr));
 
-    s_SwapChain1->Present(PresentInterval, 0);
+    //UINT PresentInterval = s_EnableVSync ? std::min(4, (int)Round(s_FrameTime * 60.0f)) : 0;
+
+    //s_SwapChain1->Present(PresentInterval, 0);
+
+    if (s_EnableVSync)
+        s_SwapChain1->Present(1, 0);
+    else
+    {
+        s_SwapChain1->Present(0, (g_SupportTearing && !fullscreenState) ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    }
 
     g_CurrentBuffer = (g_CurrentBuffer + 1) % SWAP_CHAIN_BUFFER_COUNT;
 
@@ -499,6 +532,7 @@ void Display::Present(void)
 
     int64_t CurrentTick = SystemTime::GetCurrentTick();
 
+    /*
     if (s_EnableVSync)
     {
         // With VSync enabled, the time step between frames becomes a multiple of 16.666 ms.  We need
@@ -518,7 +552,9 @@ void Display::Present(void)
         // time varies smoothly, it should be close enough.
         s_FrameTime = (float)SystemTime::TimeBetweenTicks(s_FrameStartTick, CurrentTick);
     }
+    */
 
+    s_FrameTime = (float)SystemTime::TimeBetweenTicks(s_FrameStartTick, CurrentTick);
     s_FrameStartTick = CurrentTick;
 
     ++s_FrameIndex;
