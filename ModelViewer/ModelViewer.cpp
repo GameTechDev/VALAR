@@ -70,10 +70,14 @@ private:
     D3D12_RECT m_MainScissor;
 
     ModelInstance m_ModelInst;
+    ModelInstance m_heroModelInst;
     ShadowCamera m_SunShadowCamera;
 };
 
 CREATE_APPLICATION( ModelViewer )
+
+BoolVar g_ShowHeroModel("VRS/VRS Hero/Show", true);
+BoolVar g_ShowHeroFullRate("VRS/VRS Hero/Full Rate Shading", true);
 
 ExpVar g_SunLightIntensity("Viewer/Lighting/Sun Light Intensity", 4.0f, 0.0f, 16.0f, 0.1f);
 NumVar g_SunOrientation("Viewer/Lighting/Sun Orientation", -0.5f, -100.0f, 100.0f, 0.1f );
@@ -171,6 +175,10 @@ void ModelViewer::Startup( void )
     if (CommandLineArgs::GetInteger(L"rebuild", rebuildValue))
         forceRebuild = rebuildValue != 0;
 
+    m_heroModelInst = Renderer::LoadModel(L"Hero/AntiqueCamera.glb", forceRebuild);
+    m_heroModelInst.LoopAllAnimations();
+    m_heroModelInst.Resize(300.0f);
+
     if (CommandLineArgs::GetString(L"model", gltfFileName) == false)
     {
 #ifdef LEGACY_RENDERER
@@ -247,6 +255,7 @@ void ModelViewer::Update( float deltaT )
     GraphicsContext& gfxContext = GraphicsContext::Begin(L"Scene Update");
 
     m_ModelInst.Update(gfxContext, deltaT);
+    m_heroModelInst.Update(gfxContext, deltaT);
 
     VRS::Update();
 
@@ -296,6 +305,7 @@ void ModelViewer::RenderScene( void )
         float sintheta = sinf(g_SunOrientation);
         float cosphi = cosf(g_SunInclination * 3.14159f * 0.5f);
         float sinphi = sinf(g_SunInclination * 3.14159f * 0.5f);
+        D3D12_SHADING_RATE_COMBINER shadingRateCombiners[2] = { D3D12_SHADING_RATE_COMBINER_PASSTHROUGH , D3D12_SHADING_RATE_COMBINER_OVERRIDE };
 
         Vector3 SunDirection = Normalize(Vector3( costheta * cosphi, sinphi, sintheta * cosphi ));
         Vector3 ShadowBounds = Vector3(m_ModelInst.GetRadius());
@@ -324,7 +334,31 @@ void ModelViewer::RenderScene( void )
 		sorter.SetDepthStencilTarget(g_SceneDepthBuffer);
 		sorter.AddRenderTarget(g_SceneColorBuffer);
 
+        MeshSorter heroSorter(MeshSorter::kDefault);
+        heroSorter.SetCamera(m_Camera);
+        heroSorter.SetViewport(viewport);
+        heroSorter.SetScissor(scissor);
+        heroSorter.SetDepthStencilTarget(g_SceneDepthBuffer);
+        heroSorter.AddRenderTarget(g_SceneColorBuffer);
 
+        m_ModelInst.Render(sorter);
+
+        if ((bool)g_ShowHeroModel)
+        {
+
+            m_heroModelInst.Render(heroSorter);
+        }
+
+        sorter.Sort();
+        heroSorter.Sort();
+
+        {
+            ScopedTimer _prof(L"Depth Pre-Pass", gfxContext);
+            sorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
+            heroSorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
+        }
+
+        SSAO::Render(gfxContext, m_Camera);
 
         if (VRS::Enable)
         {
@@ -336,7 +370,7 @@ void ModelViewer::RenderScene( void )
             }
             else if (VRS::ShadingRateTier == D3D12_VARIABLE_SHADING_RATE_TIER_2)
             {
-                D3D12_SHADING_RATE_COMBINER shadingRateCombiners[2] = { D3D12_SHADING_RATE_COMBINER_PASSTHROUGH , D3D12_SHADING_RATE_COMBINER_OVERRIDE };
+                
                 const std::string combinerString1 = VRS::ShadingRateCombiners1.ToString();
                 const char* combiner1 = combinerString1.c_str();
                 shadingRateCombiners[0] = VRS::GetCombiner(combiner1);
@@ -357,16 +391,6 @@ void ModelViewer::RenderScene( void )
                 VRS::DebugDraw.Bang();
             }
         }
-        m_ModelInst.Render(sorter);
-
-        sorter.Sort();
-
-        {
-            ScopedTimer _prof(L"Depth Pre-Pass", gfxContext);
-            sorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
-        }
-
-        SSAO::Render(gfxContext, m_Camera);
 
         if (!SSAO::DebugDraw)
         {
@@ -382,6 +406,7 @@ void ModelViewer::RenderScene( void )
                 m_ModelInst.Render(shadowSorter);
 
                 shadowSorter.Sort();
+
                 shadowSorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals);
             }
 
@@ -397,13 +422,40 @@ void ModelViewer::RenderScene( void )
                 gfxContext.SetViewportAndScissor(viewport, scissor);
 
                 sorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals);
+                
+                if ((bool)g_ShowHeroFullRate)
+                {
+                    D3D12_SHADING_RATE_COMBINER shadingRateCombinerHero[2] = { D3D12_SHADING_RATE_COMBINER_PASSTHROUGH, D3D12_SHADING_RATE_COMBINER_PASSTHROUGH };
+                    gfxContext.GetCommandList()->RSSetShadingRate(D3D12_SHADING_RATE_1X1, shadingRateCombinerHero);
+                }
+                else
+                {
+                    gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(VRS::VRSShadingRate), shadingRateCombiners);
+                }
+                
+                heroSorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals);
+
             }
 
             Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
 
+            gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(VRS::VRSShadingRate), shadingRateCombiners);
             sorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals);
+
+            if ((bool)g_ShowHeroFullRate)
+            {
+                D3D12_SHADING_RATE_COMBINER shadingRateCombinerHero[2] = { D3D12_SHADING_RATE_COMBINER_PASSTHROUGH, D3D12_SHADING_RATE_COMBINER_PASSTHROUGH };
+                gfxContext.GetCommandList()->RSSetShadingRate(D3D12_SHADING_RATE_1X1, shadingRateCombinerHero);
+            }
+            else
+            {
+                gfxContext.GetCommandList()->RSSetShadingRate(VRS::GetCurrentTier1ShadingRate(VRS::VRSShadingRate), shadingRateCombiners);
+            }
+            heroSorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals);
         }
     }
+    
+    gfxContext.GetCommandList()->RSSetShadingRateImage(nullptr);
 
     // Some systems generate a per-pixel velocity buffer to better track dynamic and skinned meshes.  Everything
     // is static in our scene, so we generate velocity from camera motion and the depth buffer.  A velocity buffer

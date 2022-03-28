@@ -4,7 +4,7 @@ In this example we demonstrate how to use Velocity and Luminance to define a scr
 
 ### VRS/VRS Contrast Adaptive/
 
-* **Sensitivity Threshold:** Threshold for determining the “Just Noticeable Difference” Common include 0.15, 0.5, and 0.9 (Low, Medium, High). Higher values mean lower image quality and higher performance.
+* **Sensitivity Threshold:** Threshold for determining the “Just Noticeable Difference” Common values include 0.25, 0.5, and 0.75 (Quality, Balanced, Performance). Higher values mean lower image quality and higher performance.
 * **Quarter Rate Sensitivity:** Increases the aggressiveness for the 4x4,4x2,2x4, shading rates, higher values means lower quality and higher performance 
 * **Env. Luma:** Global illumination value increases the overall LUMA during the “Just Noticeable Difference” algo. Higher values mean lower quality and higher performance.
 * **Use Motion Vectors:** Enable to include motion vectors, you need to move around the scene to observe the behavior, there is a slight time cost when enabling this feature.
