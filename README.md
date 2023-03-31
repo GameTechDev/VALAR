@@ -1,3 +1,14 @@
+# DISCONTINUATION OF PROJECT #
+This project will no longer be maintained by Intel.  
+  
+Intel has ceased development and contributions including, but not limited to, maintenance, bug fixes, new releases, or updates, to this project.  
+  
+Intel no longer accepts patches to this project.  
+  
+If you have an ongoing need to use this project, are interested in independently developing it, or would like to maintain patches for the open source software community, please create your own fork of this project.  
+
+
+
 # VRS Tier 2 Velocity & Luminance Adaptive Rasterization with Microsoft Mini-Engine
 
 In this example we demonstrate how to use Velocity and Luminance to define a screen space image to control rasterization with VRS Tier 2. The shading rate buffer is a render target that is 1/8th or 1/16th of total render target size depending on IHV implementation. By computing luminance of an 8x8 or 16x16 tile from G-Buffer render target we can define a shading rate in the shading rate buffer based on a 'Just Noticeable Difference' calculation derived from both tile luminance and tile velocity. 
